@@ -267,5 +267,5 @@ io.on("connection", (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 10005;
-server.listen(PORT, () => console.log("yahtzee-server listening on", PORT));
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => console.log("lobby-server listening on", PORT));
