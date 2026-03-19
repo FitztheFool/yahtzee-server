@@ -1,8 +1,11 @@
-// yahtzee-server/src/index.js
-const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
-require('dotenv').config();
+// yahtzee-server/src/index.ts
+import express from "express";
+import http from "http";
+import { Server } from "socket.io";
+import dotenv from 'dotenv';
+import crypto from 'crypto';
+import https from 'https';
+dotenv.config();
 
 const app = express();
 app.get("/health", (req, res) => res.status(200).send("ok"));
@@ -34,7 +37,7 @@ function startTimer(code) {
                 room.phase = "ended";
                 const state = buildState(room);
                 const results = state.players.map(pl => ({ userId: pl.userId, username: pl.username, total: pl.total }));
-                const gameId = require('crypto').randomUUID();
+                const gameId = crypto.randomUUID();
                 clearTimer(code);
                 io.to(code).emit("yahtzee:ended", { results, gameId });
                 saveYahtzeeResults(results, gameId);
@@ -163,7 +166,7 @@ function saveYahtzeeResults(results, gameId) {
             headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
         };
 
-        const req = (url.protocol === 'https:' ? require('https') : require('http')).request(options, res => {
+        const req = (url.protocol === 'https:' ? https : http).request(options, res => {
             console.log(`[Yahtzee] attempt saved for ${p.username}:`, res.statusCode);
         });
         req.on('error', err => console.error('[Yahtzee] attempt error:', err.message));
@@ -236,7 +239,7 @@ io.on("connection", (socket) => {
             const results = state.players.map(pl => ({
                 userId: pl.userId, username: pl.username, total: pl.total
             }));
-            const gameId = require('crypto').randomUUID();
+            const gameId = crypto.randomUUID();
             clearTimer(code);
             io.to(code).emit("yahtzee:ended", { results, gameId });
             saveYahtzeeResults(results, gameId);
@@ -268,5 +271,5 @@ io.on("connection", (socket) => {
     });
 });
 
-const PORT = process.env.PORT || 10000;
-server.listen(PORT, () => console.log("lobby-server listening on", PORT));
+const PORT = process.env.PORT || 10005;
+server.listen(PORT, () => console.log("[YAHTZEE] realtime listening on", PORT));
