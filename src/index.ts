@@ -179,7 +179,7 @@ function saveYahtzeeResults(results: any[], gameId: string) {
 io.on("connection", (socket) => {
     console.log("[Yahtzee] nouvelle connexion", socket.id);
 
-    socket.on("yahtzee:init", ({ lobbyId: code, players }) => {
+    socket.on("yahtzee:configure", ({ lobbyId: code, players }) => {
         const room = createRoom(code, players);
         console.log(`[Yahtzee] Room created: ${code}`);
         socket.join(code);
