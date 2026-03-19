@@ -12,11 +12,12 @@ app.get("/health", (req, res) => res.status(200).send("ok"));
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: process.env.FRONTEND_URL, methods: ["GET", "POST"], credentials: true } });
 
-const rooms = {};
-const timers = {}; // code → { interval, remaining }
+const rooms: Record<string, any> = {};
+const timers: Record<string, any> = {};
 const TURN_DURATION = 120; // 2 minutes
 
-function startTimer(code) {
+
+function startTimer(code: string) {
     clearTimer(code);
     timers[code] = { remaining: TURN_DURATION };
     timers[code].interval = setInterval(() => {
@@ -36,7 +37,7 @@ function startTimer(code) {
             if (checkGameEnd(room)) {
                 room.phase = "ended";
                 const state = buildState(room);
-                const results = state.players.map(pl => ({ userId: pl.userId, username: pl.username, total: pl.total }));
+                const results = state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total }));
                 const gameId = crypto.randomUUID();
                 clearTimer(code);
                 io.to(code).emit("yahtzee:ended", { results, gameId });
@@ -56,7 +57,7 @@ function startTimer(code) {
     }, 1000);
 }
 
-function clearTimer(code) {
+function clearTimer(code: string) {
     if (timers[code]?.interval) clearInterval(timers[code].interval);
     delete timers[code];
 }
@@ -70,7 +71,7 @@ function initScorecard() {
     };
 }
 
-function computeTotal(scoreCard) {
+function computeTotal(scoreCard: any) {
     const upper = ["ones", "twos", "threes", "fours", "fives", "sixes"];
     const lower = ["threeOfAKind", "fourOfAKind", "fullHouse", "smallStraight", "largeStraight", "yahtzee", "chance"];
     const upperSum = upper.reduce((a, k) => a + (scoreCard[k] ?? 0), 0);
@@ -80,7 +81,7 @@ function computeTotal(scoreCard) {
     return { total: upperSum + upperBonus + lowerSum + bonusYahtzee, upperBonus };
 }
 
-function calculateScore(category, dice) {
+function calculateScore(category: string, dice: number[]): number {
     const counts = [0, 0, 0, 0, 0, 0];
     dice.forEach(d => counts[d - 1]++);
     const sum = dice.reduce((a, b) => a + b, 0);
@@ -103,8 +104,8 @@ function calculateScore(category, dice) {
     }
 }
 
-function buildState(room) {
-    const players = room.players.map(p => {
+function buildState(room: any) {
+    const players = room.players.map((p: any) => {
         const { total, upperBonus } = computeTotal(p.scoreCard);
         return { ...p, total, upperBonus };
     });
@@ -118,7 +119,7 @@ function buildState(room) {
     };
 }
 
-function createRoom(code, players) {
+function createRoom(code: string, players: any[]) {
     rooms[code] = {
         code,
         players: players.map(p => ({
@@ -136,19 +137,19 @@ function createRoom(code, players) {
     return rooms[code];
 }
 
-function checkGameEnd(room) {
-    return room.players.every(p => {
-        const keys = Object.keys(initScorecard()).filter(k => k !== "yahtzeeBonus");
-        return keys.every(k => p.scoreCard[k] !== null);
+function checkGameEnd(room: any): boolean {
+    return room.players.every((p: any) => {
+        const keys = Object.keys(initScorecard()).filter((k: string) => k !== "yahtzeeBonus");
+        return keys.every((k: string) => p.scoreCard[k] !== null);
     });
 }
 
-function saveYahtzeeResults(results, gameId) {
+function saveYahtzeeResults(results: any[], gameId: string) {
     console.log('[Yahtzee] saving results:', JSON.stringify(results));
 
-    const sorted = [...results].sort((a, b) => b.total - a.total);
+    const sorted = [...results].sort((a: any, b: any) => b.total - a.total);
 
-    sorted.forEach((p, i) => {
+    sorted.forEach((p: any, i: number) => {
         const body = JSON.stringify({
             userId: p.userId,
             gameType: 'YAHTZEE',
@@ -199,7 +200,7 @@ io.on("connection", (socket) => {
         if (p.userId !== userId) return;
         if (p.rollsLeft <= 0 || room.phase !== "rolling") return;
 
-        p.dice = p.dice.map((d, i) => p.held[i] ? d : Math.ceil(Math.random() * 6));
+        p.dice = p.dice.map((d: number, i: number) => p.held[i] ? d : Math.ceil(Math.random() * 6));
         p.rollsLeft--;
         if (p.rollsLeft === 0) room.phase = "scoring";
 
@@ -236,7 +237,7 @@ io.on("connection", (socket) => {
         if (checkGameEnd(room)) {
             room.phase = "ended";
             const state = buildState(room);
-            const results = state.players.map(pl => ({
+            const results = state.players.map((pl: any) => ({
                 userId: pl.userId, username: pl.username, total: pl.total
             }));
             const gameId = crypto.randomUUID();
