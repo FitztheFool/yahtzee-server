@@ -4,7 +4,6 @@ import http from "http";
 import { Server } from "socket.io";
 import dotenv from 'dotenv';
 import crypto from 'crypto';
-import https from 'https';
 dotenv.config();
 
 const app = express();
@@ -144,36 +143,27 @@ function checkGameEnd(room: any): boolean {
     });
 }
 
-function saveYahtzeeResults(results: any[], gameId: string) {
-    console.log('[Yahtzee] saving results:', JSON.stringify(results));
-
-    const sorted = [...results].sort((a: any, b: any) => b.total - a.total);
-
-    sorted.forEach((p: any, i: number) => {
-        const body = JSON.stringify({
-            userId: p.userId,
-            gameType: 'YAHTZEE',
-            gameId,
-            score: p.total,
-            placement: i + 1,
-        });
-
-        const url = new URL(`${process.env.FRONTEND_URL}/api/attempt`);
-        const options = {
-            hostname: url.hostname,
-            port: url.port,
-            path: url.pathname,
+async function saveAttempts(gameType: string, gameId: string, scores: { userId: string; score: number; placement?: number }[]) {
+    const frontendUrl = process.env.FRONTEND_URL;
+    const secret = process.env.INTERNAL_API_KEY;
+    if (!frontendUrl || !secret) return;
+    try {
+        const res = await fetch(`${frontendUrl}/api/attempts`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) },
-        };
-
-        const req = (url.protocol === 'https:' ? https : http).request(options, res => {
-            console.log(`[Yahtzee] attempt saved for ${p.username}:`, res.statusCode);
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${secret}` },
+            body: JSON.stringify({ gameType, gameId, scores }),
         });
-        req.on('error', err => console.error('[Yahtzee] attempt error:', err.message));
-        req.write(body);
-        req.end();
-    });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        console.log(`[${gameType}] scores saved for ${gameId}`);
+    } catch (err) {
+        console.error(`[${gameType}] saveAttempts error:`, err);
+    }
+}
+
+function saveYahtzeeResults(results: any[], gameId: string) {
+    const sorted = [...results].sort((a: any, b: any) => b.total - a.total);
+    const scores = sorted.map((p: any, i: number) => ({ userId: p.userId, score: p.total, placement: i + 1 }));
+    saveAttempts('YAHTZEE', gameId, scores);
 }
 
 io.on("connection", (socket) => {
