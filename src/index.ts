@@ -169,12 +169,13 @@ function saveYahtzeeResults(results: any[], gameId: string) {
 io.on("connection", (socket) => {
     console.log("[Yahtzee] nouvelle connexion", socket.id);
 
-    socket.on("yahtzee:configure", ({ lobbyId: code, players }) => {
+    socket.on("yahtzee:configure", ({ lobbyId: code, players }, ack) => {
         const room = createRoom(code, players);
         console.log(`[Yahtzee] Room created: ${code}`);
         socket.join(code);
         io.to(code).emit("yahtzee:state", buildState(room));
         startTimer(code);
+        if (typeof ack === 'function') ack();
     });
 
     socket.on("yahtzee:join", ({ lobbyId: code }) => {
