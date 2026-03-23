@@ -178,13 +178,16 @@ io.on("connection", (socket) => {
         if (typeof ack === 'function') ack();
     });
 
-    socket.on("yahtzee:join", ({ lobbyId: code }) => {
+    socket.on("yahtzee:join", ({ lobbyId: code, userId }) => {
+        socket.data = { lobbyId: code, userId };
         socket.join(code);
         const room = rooms[code];
-        if (room) socket.emit("yahtzee:state", buildState(room));
+        if (!room) { socket.emit('notFound'); return; }
+        socket.emit("yahtzee:state", buildState(room));
     });
 
     socket.on("yahtzee:roll", ({ lobbyId: code, userId }) => {
+        if (socket.data?.userId !== userId) return;
         const room = rooms[code];
         if (!room) return;
         const p = room.players[room.currentPlayerIndex];
@@ -200,6 +203,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("yahtzee:toggleHold", ({ lobbyId: code, userId, index }) => {
+        if (socket.data?.userId !== userId) return;
         const room = rooms[code];
         if (!room) return;
         const p = room.players[room.currentPlayerIndex];
@@ -211,6 +215,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("yahtzee:score", ({ lobbyId: code, userId, category }) => {
+        if (socket.data?.userId !== userId) return;
         const room = rooms[code];
         if (!room) return;
         const p = room.players[room.currentPlayerIndex];
@@ -250,6 +255,7 @@ io.on("connection", (socket) => {
     });
 
     socket.on("yahtzee:forceScore", ({ lobbyId: code, userId }) => {
+        if (socket.data?.userId !== userId) return;
         const room = rooms[code];
         if (!room) return;
         const p = room.players[room.currentPlayerIndex];
