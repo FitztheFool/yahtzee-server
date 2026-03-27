@@ -23,24 +23,38 @@ function startTimer(code: string) {
         if (!timers[code]) return;
         timers[code].remaining--;
         io.to(code).emit("yahtzee:timer", { remaining: timers[code].remaining });
+        if (timers[code].remaining === 30) {
+            const room = rooms[code];
+            if (room) {
+                const p = room.players[room.currentPlayerIndex];
+                if (p && (room.afkStrikes?.[p.userId] ?? 0) >= 1) {
+                    io.to(code).emit('yahtzee:afkWarning', { userId: p.userId, username: p.username, secondsLeft: 30 });
+                }
+            }
+        }
         if (timers[code].remaining <= 0) {
             clearTimer(code);
             const room = rooms[code];
             if (!room) return;
             const p = room.players[room.currentPlayerIndex];
-            // Auto-score: find first available category
+            if (!room.afkStrikes) room.afkStrikes = {};
+            const strikes = (room.afkStrikes[p.userId] ?? 0) + 1;
+            room.afkStrikes[p.userId] = strikes;
+
+            if (strikes >= 2) {
+                kickAfkPlayer(code, room, p);
+                return;
+            }
+
+            // 1er timeout — auto-score et avertissement
             const keys = Object.keys(p.scoreCard).filter(k => k !== "yahtzeeBonus" && p.scoreCard[k] === null);
             if (keys.length > 0) {
-                p.scoreCard[keys[0]] = 0; // forfeit = 0
+                p.scoreCard[keys[0]] = 0;
             }
+            io.to(code).emit('yahtzee:afkWarning', { userId: p.userId, username: p.username, secondsLeft: null });
+
             if (checkGameEnd(room)) {
-                room.phase = "ended";
-                const state = buildState(room);
-                const results = state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total }));
-                const gameId = crypto.randomUUID();
-                clearTimer(code);
-                io.to(code).emit("yahtzee:ended", { results, gameId });
-                saveYahtzeeResults(results, gameId);
+                endGameWithAfk(code, room);
             } else {
                 room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
                 if (room.currentPlayerIndex === 0) room.round++;
@@ -143,7 +157,7 @@ function checkGameEnd(room: any): boolean {
     });
 }
 
-async function saveAttempts(gameType: string, gameId: string, scores: { userId: string; score: number; placement?: number }[]) {
+async function saveAttempts(gameType: string, gameId: string, scores: { userId: string; score: number; placement?: number; abandon?: boolean; afk?: boolean }[]) {
     const frontendUrl = process.env.FRONTEND_URL;
     const secret = process.env.INTERNAL_API_KEY;
     if (!frontendUrl || !secret) return;
@@ -160,10 +174,55 @@ async function saveAttempts(gameType: string, gameId: string, scores: { userId: 
     }
 }
 
-function saveYahtzeeResults(results: any[], gameId: string) {
+function saveYahtzeeResults(results: any[], gameId: string, surrenderUserId?: string) {
     const sorted = [...results].sort((a: any, b: any) => b.total - a.total);
-    const scores = sorted.map((p: any, i: number) => ({ userId: p.userId, score: p.total, placement: i + 1 }));
+    const scores = sorted.map((p: any, i: number) => ({
+        userId: p.userId,
+        score: p.total,
+        placement: i + 1,
+        abandon: surrenderUserId === p.userId,
+        afk: p.afk ?? false,
+    }));
     saveAttempts('YAHTZEE', gameId, scores);
+}
+
+function endGameWithAfk(code: string, room: any) {
+    clearTimer(code);
+    room.phase = 'ended';
+    const state = buildState(room);
+    const results = [
+        ...state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total })),
+        ...(room.afkPlayers ?? []),
+    ];
+    const gameId = crypto.randomUUID();
+    io.to(code).emit('yahtzee:finished', { results, gameId });
+    saveYahtzeeResults(results, gameId);
+    delete rooms[code];
+}
+
+function kickAfkPlayer(code: string, room: any, p: any) {
+    const { total } = computeTotal(p.scoreCard);
+    if (!room.afkPlayers) room.afkPlayers = [];
+    room.afkPlayers.push({ userId: p.userId, username: p.username, total, afk: true });
+    room.players = room.players.filter((pl: any) => pl.userId !== p.userId);
+    if (!room.afkStrikes) room.afkStrikes = {};
+    delete room.afkStrikes[p.userId];
+
+    io.to(code).emit('yahtzee:playerKicked', { userId: p.userId, username: p.username, reason: 'inactivity' });
+
+    if (room.players.length <= 1) {
+        endGameWithAfk(code, room);
+        return;
+    }
+
+    room.currentPlayerIndex = room.currentPlayerIndex % room.players.length;
+    const next = room.players[room.currentPlayerIndex];
+    next.dice = [0, 0, 0, 0, 0];
+    next.held = [false, false, false, false, false];
+    next.rollsLeft = 3;
+    room.phase = 'rolling';
+    io.to(code).emit('yahtzee:state', buildState(room));
+    startTimer(code);
 }
 
 io.on("connection", (socket) => {
@@ -194,6 +253,8 @@ io.on("connection", (socket) => {
         if (p.userId !== userId) return;
         if (p.rollsLeft <= 0 || room.phase !== "rolling") return;
 
+        if (!room.afkStrikes) room.afkStrikes = {};
+        room.afkStrikes[p.userId] = 0;
         p.dice = p.dice.map((d: number, i: number) => p.held[i] ? d : Math.ceil(Math.random() * 6));
         p.rollsLeft--;
         if (p.rollsLeft === 0) room.phase = "scoring";
@@ -228,6 +289,8 @@ io.on("connection", (socket) => {
             p.scoreCard.yahtzeeBonus = (p.scoreCard.yahtzeeBonus ?? 0) + 1;
         }
 
+        if (!room.afkStrikes) room.afkStrikes = {};
+        room.afkStrikes[p.userId] = 0;
         p.scoreCard[category] = calculateScore(category, p.dice);
 
         if (checkGameEnd(room)) {
@@ -260,8 +323,23 @@ io.on("connection", (socket) => {
         if (!room) return;
         const p = room.players[room.currentPlayerIndex];
         if (p.userId !== userId) return;
+        if (!room.afkStrikes) room.afkStrikes = {};
+        room.afkStrikes[p.userId] = 0;
         room.phase = "scoring";
         io.to(code).emit("yahtzee:state", buildState(room));
+    });
+
+    socket.on("yahtzee:surrender", ({ lobbyId: code }) => {
+        const room = rooms[code];
+        if (!room || room.phase === 'ended') return;
+        const surrenderUserId = socket.data?.userId;
+        clearTimer(code);
+        room.phase = 'ended';
+        const state = buildState(room);
+        const results = state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total }));
+        const gameId = crypto.randomUUID();
+        io.to(code).emit('yahtzee:finished', { results, gameId });
+        saveYahtzeeResults(results, gameId, surrenderUserId);
     });
 
     socket.on("disconnect", () => {
