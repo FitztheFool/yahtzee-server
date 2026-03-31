@@ -191,7 +191,7 @@ function endGameWithAfk(code: string, room: any) {
     room.phase = 'ended';
     const state = buildState(room);
     const results = [
-        ...state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total })),
+        ...state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total, scoreCard: pl.scoreCard })),
         ...(room.afkPlayers ?? []),
     ];
     const gameId = crypto.randomUUID();
@@ -310,7 +310,7 @@ io.on("connection", (socket) => {
             room.phase = "ended";
             const state = buildState(room);
             const results = [
-                ...state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total })),
+                ...state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total, scoreCard: pl.scoreCard })),
                 ...(room.afkPlayers ?? []),
             ];
             const gameId = crypto.randomUUID();
@@ -381,7 +381,7 @@ io.on("connection", (socket) => {
             const state = buildState(room);
             const remaining = state.players.filter((pl: any) => pl.userId !== surrenderUserId);
             const results = [
-                ...remaining.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total })),
+                ...remaining.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total, scoreCard: pl.scoreCard })),
                 ...(surrendererPlayer ? [{ userId: surrendererPlayer.userId, username: surrendererPlayer.username, total: surrendererTotal, scoreCard: surrendererFilledCard, abandon: true }] : []),
                 ...(room.afkPlayers ?? []),
             ];
