@@ -4,6 +4,7 @@ import http from "http";
 import { Server } from "socket.io";
 import dotenv from 'dotenv';
 import crypto from 'crypto';
+import { jwtVerify } from 'jose';
 dotenv.config();
 
 const app = express();
@@ -238,6 +239,21 @@ function kickAfkPlayer(code: string, room: any, p: any) {
     startTimer(code);
 }
 
+const SOCKET_SECRET = new TextEncoder().encode(process.env.INTERNAL_API_KEY!);
+
+io.use(async (socket, next) => {
+    const token = socket.handshake.auth?.token as string | undefined;
+    if (!token) return next(new Error('auth_required'));
+    try {
+        const { payload } = await jwtVerify(token, SOCKET_SECRET);
+        socket.data.userId = payload.sub as string;
+        socket.data.username = payload.username as string;
+        next();
+    } catch {
+        next(new Error('invalid_token'));
+    }
+});
+
 io.on("connection", (socket) => {
     console.log("[Yahtzee] nouvelle connexion", socket.id);
 
@@ -250,8 +266,9 @@ io.on("connection", (socket) => {
         if (typeof ack === 'function') ack();
     });
 
-    socket.on("yahtzee:join", ({ lobbyId: code, userId }) => {
-        socket.data = { lobbyId: code, userId };
+    socket.on("yahtzee:join", ({ lobbyId: code }) => {
+        const { userId } = socket.data;
+        socket.data.lobbyId = code;
         socket.join(code);
         const room = rooms[code];
         if (!room) { socket.emit('notFound'); return; }
