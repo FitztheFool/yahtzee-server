@@ -5,8 +5,11 @@ import { rooms } from './rooms';
 import { saveYahtzeeResults } from './api';
 import crypto from 'crypto';
 
-export const TURN_DURATION = 120;
+export const TURN_DURATION = 60;
 export const timers: Record<string, { remaining: number; interval?: ReturnType<typeof setInterval> }> = {};
+
+/** Callback set by index.ts to trigger bot turns after a forced turn change. */
+export const timerCallbacks: { onTurnChange?: (code: string) => void } = {};
 
 export function clearTimer(code: string): void {
     if (timers[code]?.interval) clearInterval(timers[code].interval);
@@ -61,6 +64,7 @@ export function kickAfkPlayer(io: Server, code: string, room: Room, p: Player): 
 
     io.to(code).emit('yahtzee:state', buildState(room));
     startTimer(io, code);
+    timerCallbacks.onTurnChange?.(code);
 }
 
 export function startTimer(io: Server, code: string): void {
@@ -120,6 +124,7 @@ export function startTimer(io: Server, code: string): void {
             room.phase = 'rolling';
             io.to(code).emit('yahtzee:state', buildState(room));
             startTimer(io, code);
+            timerCallbacks.onTurnChange?.(code);
         }
     }, 1000);
 }

@@ -49,6 +49,7 @@ export interface AfkPlayer {
 
 export interface SaveScore {
     userId: string;
+    username?: string;
     score: number;
     placement?: number;
     abandon?: boolean;

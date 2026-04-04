@@ -11,7 +11,7 @@ import {
     fillScorecard, computeTotal, resetPlayerTurn, rollDice,
 } from './game';
 import { rooms, createRoom } from './rooms';
-import { startTimer, clearTimer } from './timer';
+import { startTimer, clearTimer, timerCallbacks } from './timer';
 import { saveYahtzeeResults } from './api';
 
 // ─── Bot strategy ─────────────────────────────────────────────────────────────
@@ -140,6 +140,8 @@ function botDoScore(code: string): void {
         doScore(code, botChooseCategory(p.dice, p.scoreCard));
     }, 700);
 }
+
+timerCallbacks.onTurnChange = botTakeTurnIfNeeded;
 
 dotenv.config();
 
