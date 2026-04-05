@@ -55,7 +55,7 @@ export function calculateScore(category: ScoreCategory, dice: number[]): number 
 
 /** Remplit toutes les cases null d'une scorecard à 0. */
 export function fillScorecard(scoreCard: ScoreCard): ScoreCard {
-    const keys = (Object.keys(initScorecard()) as ScoreCategory[]).filter(k => k !== 'yahtzeeBonus');
+    const keys = (Object.keys(initScorecard()) as (keyof ScoreCard)[]).filter((k): k is ScoreCategory => k !== 'yahtzeeBonus');
     const filled = { ...scoreCard };
     for (const k of keys) if (filled[k] === null) filled[k] = 0;
     return filled;
@@ -64,7 +64,7 @@ export function fillScorecard(scoreCard: ScoreCard): ScoreCard {
 // ─── État de jeu ──────────────────────────────────────────────────────────────
 
 export function checkGameEnd(room: Room): boolean {
-    const keys = (Object.keys(initScorecard()) as ScoreCategory[]).filter(k => k !== 'yahtzeeBonus');
+    const keys = (Object.keys(initScorecard()) as (keyof ScoreCard)[]).filter((k): k is ScoreCategory => k !== 'yahtzeeBonus');
     return room.players.every(p => keys.every(k => p.scoreCard[k] !== null));
 }
 
