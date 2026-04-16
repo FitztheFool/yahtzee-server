@@ -4,6 +4,8 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import crypto from 'crypto';
 import { setupSocketAuth, corsConfig } from '@kwizar/shared';
+import { io as socketClient } from 'socket.io-client';
+import { SignJWT } from 'jose';
 
 import { ScoreCard, ScoreCategory } from './types';
 import {
@@ -153,20 +155,40 @@ const io = new Server(server, { cors: corsConfig, maxHttpBufferSize: 1e5 });
 
 setupSocketAuth(io, new TextEncoder().encode(process.env.INTERNAL_API_KEY!));
 
+// ── Lobby server connection ────────────────────────────────────────────────────
+
+const LOBBY_URL = process.env.LOBBY_SERVER_URL || 'http://localhost:10000';
+
+async function makeLobbyToken(): Promise<string> {
+    return new SignJWT({ username: 'yahtzee-server' })
+        .setProtectedHeader({ alg: 'HS256' })
+        .setSubject('yahtzee-server')
+        .sign(new TextEncoder().encode(process.env.INTERNAL_API_KEY!));
+}
+
+const lobbySocket = socketClient(LOBBY_URL, {
+    auth: (cb: (d: object) => void) => makeLobbyToken().then(token => cb({ token, gameType: 'yahtzee' })),
+    reconnection: true,
+    reconnectionDelay: 5_000,
+    reconnectionDelayMax: 30_000,
+});
+lobbySocket.on('connect', () => console.log('[LOBBY] connected'));
+lobbySocket.on('disconnect', (reason: string) => console.log('[LOBBY] disconnected:', reason));
+lobbySocket.on('connect_error', (err: any) => console.log('[LOBBY] connect_error:', err.message));
+
+lobbySocket.on('yahtzee:configure', ({ lobbyId: code, players }: { lobbyId: string; players: any[] }, ack?: () => void) => {
+    const room = createRoom(code, players);
+    console.log(`[Yahtzee] Room created: ${code}`);
+    io.to(code).emit('yahtzee:state', buildState(room));
+    startTimer(io, code);
+    setTimeout(() => botTakeTurnIfNeeded(code), 1000);
+    if (typeof ack === 'function') ack();
+});
+
 // ─── Socket events ────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
     console.log('[Yahtzee] nouvelle connexion', socket.id);
-
-    socket.on('yahtzee:configure', ({ lobbyId: code, players }: { lobbyId: string; players: any[] }, ack?: () => void) => {
-        const room = createRoom(code, players);
-        console.log(`[Yahtzee] Room created: ${code}`);
-        socket.join(code);
-        io.to(code).emit('yahtzee:state', buildState(room));
-        startTimer(io, code);
-        setTimeout(() => botTakeTurnIfNeeded(code), 1000);
-        if (typeof ack === 'function') ack();
-    });
 
     socket.on('yahtzee:join', ({ lobbyId: code }: { lobbyId: string }) => {
         socket.data.lobbyId = code;
