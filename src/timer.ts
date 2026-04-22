@@ -50,7 +50,7 @@ export function kickAfkPlayer(io: Server, code: string, room: Room, p: Player): 
         total,
     });
 
-    if (room.players.length <= 1) {
+    if (room.players.length <= 1 || room.players.every(pl => pl.userId.startsWith('bot-'))) {
         endGameWithAfk(io, code, room);
         return;
     }

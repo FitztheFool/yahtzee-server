@@ -263,7 +263,10 @@ io.on('connection', (socket) => {
 
         const surrenderUserId = socket.data?.userId as string;
 
-        if (room.players.length > 2) {
+        const remainingAfter = room.players.filter(pl => pl.userId !== surrenderUserId);
+        const onlyBotsLeft = remainingAfter.length > 0 && remainingAfter.every(pl => pl.userId.startsWith('bot-'));
+
+        if (room.players.length > 2 && !onlyBotsLeft) {
             // Partie multi : retirer le joueur et continuer
             const surrenderIdx = room.players.findIndex(pl => pl.userId === surrenderUserId);
             if (surrenderIdx === -1) return;
