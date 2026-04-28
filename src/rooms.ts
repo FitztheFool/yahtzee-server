@@ -10,6 +10,8 @@ export function createRoom(code: string, players: any[]): Room {
         currentPlayerIndex: Math.floor(Math.random() * players.length),
         round: 1,
         phase: 'rolling',
+        socketIds: new Map(),
+        disconnectTimers: new Map(),
     };
     return rooms[code];
 }

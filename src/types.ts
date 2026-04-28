@@ -36,6 +36,8 @@ export interface Room {
     phase: GamePhase;
     afkStrikes?: Record<string, number>;
     afkPlayers?: AfkPlayer[];
+    socketIds: Map<string, string>;
+    disconnectTimers: Map<string, ReturnType<typeof setTimeout>>;
 }
 
 export interface AfkPlayer {

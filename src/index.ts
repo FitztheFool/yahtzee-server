@@ -11,7 +11,7 @@ import {
     fillScorecard, computeTotal, resetPlayerTurn, rollDice,
 } from './game';
 import { rooms, createRoom } from './rooms';
-import { startTimer, clearTimer, timerCallbacks } from './timer';
+import { startTimer, clearTimer, timerCallbacks, kickAfkPlayer } from './timer';
 import { saveYahtzeeResults } from './api';
 
 // ─── Bot strategy ─────────────────────────────────────────────────────────────
@@ -170,10 +170,23 @@ io.on('connection', (socket) => {
     console.log('[Yahtzee] nouvelle connexion', socket.id);
 
     socket.on('yahtzee:join', ({ lobbyId: code }: { lobbyId: string }) => {
+        const userId = socket.data?.userId as string;
         socket.data.lobbyId = code;
         socket.join(code);
         const room = rooms[code];
         if (!room) { socket.emit('notFound'); return; }
+
+        if (userId) {
+            room.socketIds.set(userId, socket.id);
+            const timer = room.disconnectTimers.get(userId);
+            if (timer) {
+                clearTimeout(timer);
+                room.disconnectTimers.delete(userId);
+                const player = room.players.find(p => p.userId === userId);
+                if (player) io.to(code).emit('yahtzee:playerReconnected', { userId, username: player.username });
+            }
+        }
+
         socket.emit('yahtzee:state', buildState(room));
     });
 
@@ -299,7 +312,27 @@ io.on('connection', (socket) => {
     });
 
     socket.on('disconnect', () => {
+        const userId = socket.data?.userId as string;
+        const code = socket.data?.lobbyId as string;
         console.log(`[Yahtzee] Disconnected: ${socket.id}`);
+        if (!userId || !code) return;
+
+        const room = rooms[code];
+        if (!room || room.phase === 'ended') return;
+
+        const player = room.players.find(p => p.userId === userId);
+        if (!player) return;
+
+        room.socketIds.delete(userId);
+        io.to(code).emit('yahtzee:inactivityWarning', { userId, username: player.username, secondsLeft: 60 });
+
+        room.disconnectTimers.set(userId, setTimeout(() => {
+            const r = rooms[code];
+            if (!r || r.phase === 'ended') return;
+            const pl = r.players.find(p => p.userId === userId);
+            if (!pl) return;
+            kickAfkPlayer(io, code, r, pl);
+        }, 60_000));
     });
 });
 
