@@ -171,20 +171,26 @@ io.on('connection', (socket) => {
 
     socket.on('yahtzee:join', ({ lobbyId: code }: { lobbyId: string }) => {
         const userId = socket.data?.userId as string;
-        socket.data.lobbyId = code;
-        socket.join(code);
         const room = rooms[code];
         if (!room) { socket.emit('notFound'); return; }
 
-        if (userId) {
-            room.socketIds.set(userId, socket.id);
-            const timer = room.disconnectTimers.get(userId);
-            if (timer) {
-                clearTimeout(timer);
-                room.disconnectTimers.delete(userId);
-                const player = room.players.find(p => p.userId === userId);
-                if (player) io.to(code).emit('yahtzee:playerReconnected', { userId, username: player.username });
-            }
+        // Seuls les joueurs configurés (ou les AFK pour reprise) peuvent rejoindre.
+        const isMember = !!userId && (
+            room.players.some(p => p.userId === userId) ||
+            (room.afkPlayers ?? []).some(p => p.userId === userId)
+        );
+        if (!isMember) { socket.emit('yahtzee:accessDenied'); return; }
+
+        socket.data.lobbyId = code;
+        socket.join(code);
+
+        room.socketIds.set(userId, socket.id);
+        const timer = room.disconnectTimers.get(userId);
+        if (timer) {
+            clearTimeout(timer);
+            room.disconnectTimers.delete(userId);
+            const player = room.players.find(p => p.userId === userId);
+            if (player) io.to(code).emit('yahtzee:playerReconnected', { userId, username: player.username });
         }
 
         socket.emit('yahtzee:state', buildState(room));
@@ -254,6 +260,7 @@ io.on('connection', (socket) => {
         if (!room || room.phase === 'ended') return;
 
         const surrenderUserId = socket.data?.userId as string;
+        if (!surrenderUserId || !room.players.some(p => p.userId === surrenderUserId)) return;
 
         const remainingAfter = room.players.filter(pl => pl.userId !== surrenderUserId);
         const onlyBotsLeft = remainingAfter.length > 0 && remainingAfter.every(pl => pl.userId.startsWith('bot-'));
