@@ -7,14 +7,27 @@ export function saveYahtzeeResults(
     surrenderUserId?: string,
 ): void {
     const vsBot = results.some(p => p.userId.startsWith('bot-'));
-    const sorted = [...results].sort((a, b) => b.total - a.total);
-    const scores: ScoreEntry[] = sorted.map((p, i) => ({
-        userId: p.userId,
-        username: p.username,
-        score: p.total,
-        placement: i + 1,
-        abandon: surrenderUserId === p.userId || (p.abandon ?? false),
-        afk: p.afk ?? false,
-    }));
+    const isAbandon = (p: AfkPlayer & { abandon?: boolean }) =>
+        surrenderUserId === p.userId || (p.abandon ?? false);
+    const isAfk = (p: AfkPlayer & { abandon?: boolean }) => p.afk ?? false;
+
+    const finishers = results.filter(p => !isAbandon(p) && !isAfk(p));
+    const sortedFinishers = [...finishers].sort((a, b) => b.total - a.total);
+
+    const scores: ScoreEntry[] = results.map(p => {
+        const abandon = isAbandon(p);
+        const afk = isAfk(p);
+        const placement = abandon || afk
+            ? null
+            : sortedFinishers.findIndex(x => x.userId === p.userId) + 1;
+        return {
+            userId: p.userId,
+            username: p.username,
+            score: p.total,
+            placement,
+            abandon,
+            afk,
+        };
+    });
     saveAttempts('YAHTZEE', gameId, scores, vsBot);
 }
