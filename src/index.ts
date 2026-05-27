@@ -13,6 +13,13 @@ import {
 import { rooms, createRoom } from './rooms';
 import { startTimer, clearTimer, timerCallbacks, kickAfkPlayer } from './timer';
 import { saveYahtzeeResults } from './api';
+import { pushLog } from './gameLog';
+
+const CATEGORY_FR: Record<string, string> = {
+    ones: 'As', twos: 'Deux', threes: 'Trois', fours: 'Quatre', fives: 'Cinq', sixes: 'Six',
+    threeOfAKind: 'Brelan', fourOfAKind: 'Carré', fullHouse: 'Full', smallStraight: 'Petite suite',
+    largeStraight: 'Grande suite', yahtzee: 'Yahtzee', chance: 'Chance',
+};
 
 // ─── Bot strategy ─────────────────────────────────────────────────────────────
 
@@ -76,10 +83,14 @@ function doScore(code: string, category: ScoreCategory): void {
     const p = room.players[room.currentPlayerIndex];
     if (category !== 'yahtzee' && p.scoreCard.yahtzee === 50 && calculateScore('yahtzee', p.dice) === 50) {
         p.scoreCard.yahtzeeBonus = (p.scoreCard.yahtzeeBonus ?? 0) + 1;
+        pushLog(room, 'coup', `${p.username} — Yahtzee bonus ! (+100)`);
     }
     if (!room.afkStrikes) room.afkStrikes = {};
     room.afkStrikes[p.userId] = 0;
-    p.scoreCard[category] = calculateScore(category, p.dice);
+    const scored = calculateScore(category, p.dice);
+    p.scoreCard[category] = scored;
+    pushLog(room, scored > 0 ? 'score' : 'system',
+        `${p.username} inscrit ${scored} en ${CATEGORY_FR[category] ?? category}`);
 
     if (checkGameEnd(room)) {
         room.phase = 'ended';
@@ -88,6 +99,8 @@ function doScore(code: string, category: ScoreCategory): void {
             ...state.players.map((pl: any) => ({ userId: pl.userId, username: pl.username, total: pl.total, scoreCard: pl.scoreCard })),
             ...(room.afkPlayers ?? []),
         ];
+        const ranked = [...results].sort((a, b) => b.total - a.total);
+        if (ranked[0]) pushLog(room, 'coup', `${ranked[0].username} gagne avec ${ranked[0].total} points !`);
         const gameId = crypto.randomUUID();
         clearTimer(code);
         io.to(code).emit('yahtzee:ended', { results, gameId });
@@ -124,6 +137,7 @@ function botRoll(code: string): void {
 
         if (p.rollsLeft < 3) p.held = botChooseHeld(p.dice, p.scoreCard);
         rollDice(p);
+        pushLog(room, 'move', `${p.username} lance les dés : ${p.dice.join(' ')}`);
         if (p.rollsLeft === 0) room.phase = 'scoring';
         io.to(code).emit('yahtzee:state', buildState(room));
 
@@ -209,6 +223,7 @@ io.on('connection', (socket) => {
         room.afkStrikes[p.userId] = 0;
 
         rollDice(p);
+        pushLog(room, 'move', `${p.username} lance les dés : ${p.dice.join(' ')} (${p.rollsLeft} relance${p.rollsLeft > 1 ? 's' : ''} restante${p.rollsLeft > 1 ? 's' : ''})`);
         if (p.rollsLeft === 0) room.phase = 'scoring';
 
         io.to(code).emit('yahtzee:state', buildState(room));
@@ -261,6 +276,7 @@ io.on('connection', (socket) => {
 
         const surrenderUserId = socket.data?.userId as string;
         if (!surrenderUserId || !room.players.some(p => p.userId === surrenderUserId)) return;
+        pushLog(room, 'system', `${room.players.find(p => p.userId === surrenderUserId)?.username ?? '?'} abandonne`);
 
         const remainingAfter = room.players.filter(pl => pl.userId !== surrenderUserId);
         const onlyBotsLeft = remainingAfter.length > 0 && remainingAfter.every(pl => pl.userId.startsWith('bot-'));

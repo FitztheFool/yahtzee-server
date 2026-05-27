@@ -80,6 +80,7 @@ export function buildState(room: Room) {
         currentUserId: currentPlayer?.userId,
         turn: room.round,
         phase: room.phase,
+        log: (room.log ?? []).slice(-100),
     };
 }
 

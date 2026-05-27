@@ -1,3 +1,5 @@
+import type { GameLogEntry } from './gameLog';
+
 export interface Player {
     userId: string;
     username: string;
@@ -38,6 +40,8 @@ export interface Room {
     afkPlayers?: AfkPlayer[];
     socketIds: Map<string, string>;
     disconnectTimers: Map<string, ReturnType<typeof setTimeout>>;
+    log: GameLogEntry[];
+    logSeq?: number;
 }
 
 export interface AfkPlayer {

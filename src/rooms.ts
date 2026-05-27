@@ -12,6 +12,8 @@ export function createRoom(code: string, players: any[]): Room {
         phase: 'rolling',
         socketIds: new Map(),
         disconnectTimers: new Map(),
+        log: [],
+        logSeq: 0,
     };
     return rooms[code];
 }
