@@ -171,7 +171,7 @@ const lobbySocket = connectToLobby('yahtzee-server', 'yahtzee');
 
 lobbySocket.on('yahtzee:configure', ({ lobbyId: code, players }: { lobbyId: string; players: any[] }, ack?: () => void) => {
     const room = createRoom(code, players);
-    console.log(`[Yahtzee] Room created: ${code}`);
+    console.log(`[YAHTZEE] Room created: ${code}`);
     io.to(code).emit('yahtzee:state', buildState(room));
     startTimer(io, code);
     setTimeout(() => botTakeTurnIfNeeded(code), 1000);
@@ -181,7 +181,7 @@ lobbySocket.on('yahtzee:configure', ({ lobbyId: code, players }: { lobbyId: stri
 // ─── Socket events ────────────────────────────────────────────────────────────
 
 io.on('connection', (socket) => {
-    console.log('[Yahtzee] nouvelle connexion', socket.id);
+    console.log('[YAHTZEE] connexion', socket.id);
 
     socket.on('yahtzee:join', ({ lobbyId: code }: { lobbyId: string }) => {
         const userId = socket.data?.userId as string;
@@ -337,7 +337,7 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         const userId = socket.data?.userId as string;
         const code = socket.data?.lobbyId as string;
-        console.log(`[Yahtzee] Disconnected: ${socket.id}`);
+        console.log(`[YAHTZEE] déconnexion ${socket.id}`);
         if (!userId || !code) return;
 
         const room = rooms[code];
@@ -362,7 +362,7 @@ io.on('connection', (socket) => {
 // ─── Démarrage ────────────────────────────────────────────────────────────────
 
 const PORT = process.env.PORT ?? 10005;
-server.listen(PORT, () => console.log('[YAHTZEE] realtime listening on', PORT));
+server.listen(PORT, () => console.log('[YAHTZEE] listening on port', PORT));
 
 const shutdown = () => {
     io.close(() => {
