@@ -26,7 +26,7 @@ export function endGameWithAfk(io: Server, code: string, room: Room): void {
     ];
     const gameId = crypto.randomUUID();
     io.to(code).emit('yahtzee:finished', { results, gameId });
-    saveYahtzeeResults(results, gameId);
+    saveYahtzeeResults(io, code, results, gameId);
     delete rooms[code];
 }
 

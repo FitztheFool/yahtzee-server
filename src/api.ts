@@ -1,7 +1,10 @@
-import { saveAttempts, ScoreEntry } from '@kwizar/shared';
+import type { Server } from 'socket.io';
+import { saveAttemptsAndEmit, ScoreEntry } from '@kwizar/shared';
 import { AfkPlayer, SaveScore } from './types';
 
 export function saveYahtzeeResults(
+    io: Server,
+    room: string,
     results: (AfkPlayer & { abandon?: boolean })[],
     gameId: string,
     surrenderUserId?: string,
@@ -29,5 +32,5 @@ export function saveYahtzeeResults(
             afk,
         };
     });
-    saveAttempts('YAHTZEE', gameId, scores, vsBot);
+    saveAttemptsAndEmit(io, room, 'YAHTZEE', gameId, scores, vsBot);
 }

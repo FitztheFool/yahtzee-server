@@ -104,7 +104,7 @@ function doScore(code: string, category: ScoreCategory): void {
         const gameId = crypto.randomUUID();
         clearTimer(code);
         io.to(code).emit('yahtzee:ended', { results, gameId });
-        saveYahtzeeResults(results, gameId);
+        saveYahtzeeResults(io, code, results, gameId);
     } else {
         room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
         if (room.currentPlayerIndex === 0) room.round++;
@@ -330,7 +330,7 @@ io.on('connection', (socket) => {
 
             const gameId = crypto.randomUUID();
             io.to(code).emit('yahtzee:finished', { results, gameId });
-            saveYahtzeeResults(results, gameId, surrenderUserId);
+            saveYahtzeeResults(io, code, results, gameId, surrenderUserId);
         }
     });
 
