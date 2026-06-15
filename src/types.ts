@@ -42,6 +42,7 @@ export interface Room {
     disconnectTimers: Map<string, ReturnType<typeof setTimeout>>;
     log: GameLogEntry[];
     logSeq?: number;
+    turnDuration?: number;
 }
 
 export interface AfkPlayer {

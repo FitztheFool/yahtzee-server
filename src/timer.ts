@@ -69,7 +69,9 @@ export function kickAfkPlayer(io: Server, code: string, room: Room, p: Player): 
 
 export function startTimer(io: Server, code: string): void {
     clearTimer(code);
-    timers[code] = { remaining: TURN_DURATION };
+    const dur = rooms[code]?.turnDuration ?? TURN_DURATION;
+    if (dur <= 0) return;                              // 0 = pas de limite (jamais AFK)
+    timers[code] = { remaining: dur };
 
     timers[code].interval = setInterval(() => {
         if (!timers[code]) return;

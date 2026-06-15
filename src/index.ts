@@ -169,8 +169,9 @@ setupSocketAuth(io, new TextEncoder().encode((process.env.SOCKET_USER_SECRET ?? 
 
 const lobbySocket = connectToLobby('yahtzee-server', 'yahtzee');
 
-lobbySocket.on('yahtzee:configure', ({ lobbyId: code, players }: { lobbyId: string; players: any[] }, ack?: () => void) => {
+lobbySocket.on('yahtzee:configure', ({ lobbyId: code, players, turnSeconds }: { lobbyId: string; players: any[]; turnSeconds?: number | null }, ack?: () => void) => {
     const room = createRoom(code, players);
+    if (turnSeconds != null) room.turnDuration = turnSeconds;
     console.log(`[YAHTZEE] Room created: ${code}`);
     io.to(code).emit('yahtzee:state', buildState(room));
     startTimer(io, code);
